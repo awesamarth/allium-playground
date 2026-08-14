@@ -3,7 +3,7 @@
 import { useAppKit } from "@reown/appkit/react";
 import { ArrowUpRight, Check, ChevronRight, Copy, LoaderCircle, X } from "lucide-react";
 import { Mppx, tempo as tempoPayment } from "mppx/client";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { getConnectorClient, signTypedData } from "wagmi/actions";
 import {
@@ -18,8 +18,9 @@ import {
   type X402Quote,
 } from "@/lib/allium";
 import { wagmiAdapter } from "@/lib/wallet";
+import { ApiResultView } from "@/components/api-result-view";
 
-type WorkbenchStage = "edit" | "quoting" | "quoted" | "paying" | "result" | "error";
+type WorkbenchStage = "edit" | "quoting" | "paying" | "result" | "error";
 
 type PaymentReceipt = Record<string, unknown>;
 
@@ -81,7 +82,6 @@ export function ApiCatalogue({ paymentRail = "tempo" }: { paymentRail?: "tempo" 
   const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
   const [copied, setCopied] = useState<"response" | "receipt" | null>(null);
   const [error, setError] = useState("");
-  const challengeResponse = useRef<Response | null>(null);
   const { open } = useAppKit();
   const { isConnected } = useAccount();
   const chainId = useChainId();
@@ -97,14 +97,12 @@ export function ApiCatalogue({ paymentRail = "tempo" }: { paymentRail?: "tempo" 
     setReceipt(null);
     setCopied(null);
     setError("");
-    challengeResponse.current = null;
   }
 
   function updateValue(key: string, value: string) {
     setValues((current) => ({ ...current, [key]: value }));
     setQuote(null);
     setStage("edit");
-    challengeResponse.current = null;
   }
 
   function requestEnvelope() {
@@ -118,47 +116,38 @@ export function ApiCatalogue({ paymentRail = "tempo" }: { paymentRail?: "tempo" 
     window.setTimeout(() => setCopied((current) => current === kind ? null : current), 1_600);
   }
 
-  async function getQuote() {
-    setStage("quoting");
-    setError("");
-    try {
-      const response = await fetch("/api/allium/run", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-allium-payment-rail": paymentRail },
-        body: JSON.stringify(requestEnvelope()),
-      });
-      const body = await response.clone().json();
-      if (response.status !== 402 || !body.quote) {
-        throw new Error(body.error ?? "Could not obtain an Allium quote.");
-      }
-      challengeResponse.current = response;
-      setQuote(body.quote);
-      setStage("quoted");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not get a quote.");
-      setStage("error");
-    }
-  }
-
   async function approveAndRun() {
-    if (!selected || !quote) return;
+    if (!selected) return;
     if (!isConnected) {
       await open({ view: "Connect" });
       return;
     }
-    setStage("paying");
+    setStage("quoting");
     setError("");
 
     try {
+      // Always obtain and validate a fresh 402 challenge immediately before signing.
+      // The user does not need a separate review step, but cached catalogue pricing is
+      // never trusted as payment authorization.
+      const paymentRequired = await fetch("/api/allium/run", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-allium-payment-rail": paymentRail },
+        body: JSON.stringify(requestEnvelope()),
+      });
+      const challenge = await paymentRequired.clone().json();
+      if (paymentRequired.status !== 402 || !challenge.quote) {
+        throw new Error(challenge.error ?? "Could not obtain an Allium payment challenge.");
+      }
+      const activeQuote = challenge.quote as TempoQuote | X402Quote;
+      setQuote(activeQuote);
+      setStage("paying");
+
       const targetChainId = paymentRail === "base" ? BASE_CHAIN_ID : TEMPO_CHAIN_ID;
       if (chainId !== targetChainId) await switchChainAsync({ chainId: targetChainId });
-      const paymentRequired = challengeResponse.current;
-      if (!paymentRequired) throw new Error("The quote expired. Request a new quote.");
-
       const connectorClient = await getConnectorClient(wagmiAdapter.wagmiConfig, { chainId: targetChainId });
       let credential: string;
       if (paymentRail === "base") {
-        const x402Quote = quote as X402Quote;
+        const x402Quote = activeQuote as X402Quote;
         const accepted = x402Quote.accepted;
         const bytes = crypto.getRandomValues(new Uint8Array(32));
         const nonce = `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}` as `0x${string}`;
@@ -309,12 +298,12 @@ export function ApiCatalogue({ paymentRail = "tempo" }: { paymentRail?: "tempo" 
               {stage === "result" && (
                 <div className="api-result">
                   <div className="api-result-heading"><span><Check size={14} /> Request complete</span><small>${quote?.amountUsd.toFixed(2)} paid · receipt returned</small></div>
-                  <div className="response-json">
-                    <button onClick={() => copyJson("response", result)} aria-label="Copy response JSON" title="Copy response JSON">
-                      {copied === "response" ? <Check size={14} /> : <Copy size={14} />}
-                    </button>
-                    <pre>{JSON.stringify(result, null, 2)}</pre>
-                  </div>
+                  <ApiResultView
+                    tool={selected.id}
+                    result={result}
+                    copied={copied === "response"}
+                    onCopy={() => copyJson("response", result)}
+                  />
                   {receipt && (
                     <details>
                       <summary>Payment receipt</summary>
@@ -332,15 +321,13 @@ export function ApiCatalogue({ paymentRail = "tempo" }: { paymentRail?: "tempo" 
             </div>
 
             <footer className="workbench-actions">
-              {stage === "quoted" || stage === "paying" ? (
-                <button className="workbench-primary" onClick={approveAndRun} disabled={stage === "paying"}>
-                  {stage === "paying" ? <><LoaderCircle className="spin" size={16} /> Awaiting wallet</> : isConnected ? <>Approve and run <ArrowUpRight size={15} /></> : <>Connect wallet <ArrowUpRight size={15} /></>}
-                </button>
-              ) : (
-                <button className="workbench-primary" onClick={getQuote} disabled={stage === "quoting"}>
-                  {stage === "quoting" ? <><LoaderCircle className="spin" size={16} /> Fetching quote</> : stage === "result" ? "Run again" : "Review price"}
-                </button>
-              )}
+              <button className="workbench-primary" onClick={approveAndRun} disabled={stage === "quoting" || stage === "paying"}>
+                {stage === "quoting" ? <><LoaderCircle className="spin" size={16} /> Preparing payment</>
+                  : stage === "paying" ? <><LoaderCircle className="spin" size={16} /> Awaiting wallet</>
+                  : !isConnected ? <>Connect wallet <ArrowUpRight size={15} /></>
+                  : stage === "result" ? <>Run again <ArrowUpRight size={15} /></>
+                  : <>Approve and run <ArrowUpRight size={15} /></>}
+              </button>
               <small>No request is paid until you approve it in your wallet.</small>
             </footer>
           </aside>

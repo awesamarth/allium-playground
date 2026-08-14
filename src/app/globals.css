@@ -222,11 +222,26 @@ td a { display: inline-flex; gap: 4px; align-items: center; text-decoration: und
 .api-result-heading { min-height: 58px; padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .api-result-heading span { display: flex; gap: 7px; align-items: center; font-size: 12px; }
 .api-result-heading small { color: #746d72; font-size: 9px; }
+.result-tabs { min-height: 43px; padding: 0 14px; border-bottom: 1px solid var(--line); display: flex; align-items: stretch; gap: 20px; }
+.result-tabs button { position: relative; padding: 0 1px; border: 0; background: transparent; color: #7a7278; cursor: pointer; font-size: 10px; }
+.result-tabs button:hover, .result-tabs button.active { color: var(--ink); }
+.result-tabs button.active::after { content: ""; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--pink); }
+.visual-result { padding: 21px 18px 16px; background: #fdfcfb; }
+.visual-result-copy { margin-bottom: 10px; }
+.visual-result-copy h4 { margin: 0 0 5px; font-size: 14px; font-weight: 600; letter-spacing: -.015em; }
+.visual-result-copy p { margin: 0; color: #756d73; font-size: 10px; line-height: 1.5; }
+.allium-chart { width: 100%; height: 340px; }
+.chart-empty { height: 210px; display: grid; place-items: center; color: #827a80; font-size: 11px; text-align: center; }
+.result-table-wrap { max-height: 430px; overflow: auto; }
+.result-table { min-width: 100%; width: max-content; font-size: 10px; }
+.result-table th { position: sticky; top: 0; z-index: 1; padding: 10px 12px; font-size: 9px; text-transform: capitalize; }
+.result-table td { max-width: 260px; padding: 12px; overflow: hidden; font-family: var(--font-mono); font-size: 9px; text-overflow: ellipsis; }
+.table-limit-note { position: sticky; bottom: 0; margin: 0; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--pink-soft); color: #6f656d; font-size: 9px; }
 .response-json { position: relative; }
 .response-json > button, .receipt-json > button { width: 29px; height: 29px; border: 1px solid transparent; background: transparent; display: grid; place-items: center; color: #675f65; cursor: pointer; }
 .response-json > button { position: absolute; top: 9px; right: 9px; z-index: 1; background: rgba(255,255,255,.88); }
 .response-json > button:hover, .receipt-json > button:hover { border-color: #c5bec2; background: white; color: var(--ink); }
-.response-json pre { padding-right: 52px; }
+.response-json pre { min-height: 240px; padding-right: 52px; }
 .api-result details { padding: 13px 15px; border-top: 1px solid var(--line); }
 .api-result summary { cursor: pointer; font-size: 10px; }
 .receipt-json { position: relative; margin-top: 10px; border: 1px solid var(--line); background: #f4f1f2; }
