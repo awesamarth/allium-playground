@@ -5,7 +5,7 @@ import { ArrowUpRight, Check, ChevronRight, Copy, LoaderCircle, X } from "lucide
 import { Mppx, tempo as tempoPayment } from "mppx/client";
 import { useMemo, useState } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
-import { getConnectorClient, signTypedData } from "wagmi/actions";
+import { getConnectorClient } from "wagmi/actions";
 import {
   alliumToolCatalogue,
   type AlliumToolDefinition,
@@ -19,6 +19,7 @@ import {
 } from "@/lib/allium";
 import { wagmiAdapter } from "@/lib/wallet";
 import { ApiResultView } from "@/components/api-result-view";
+import { createBaseX402Credential } from "@/lib/x402-browser";
 
 type WorkbenchStage = "edit" | "quoting" | "paying" | "result" | "error";
 
@@ -144,54 +145,11 @@ export function ApiCatalogue({ paymentRail = "tempo" }: { paymentRail?: "tempo" 
 
       const targetChainId = paymentRail === "base" ? BASE_CHAIN_ID : TEMPO_CHAIN_ID;
       if (chainId !== targetChainId) await switchChainAsync({ chainId: targetChainId });
-      const connectorClient = await getConnectorClient(wagmiAdapter.wagmiConfig, { chainId: targetChainId });
       let credential: string;
       if (paymentRail === "base") {
-        const x402Quote = activeQuote as X402Quote;
-        const accepted = x402Quote.accepted;
-        const bytes = crypto.getRandomValues(new Uint8Array(32));
-        const nonce = `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}` as `0x${string}`;
-        const authorization = {
-          from: connectorClient.account.address,
-          to: accepted.payTo as `0x${string}`,
-          value: accepted.amount,
-          validAfter: "0",
-          validBefore: String(accepted.maxTimeoutSeconds),
-          nonce,
-        };
-        const signature = await signTypedData(wagmiAdapter.wagmiConfig, {
-          account: connectorClient.account.address,
-          domain: {
-            name: accepted.extra.name,
-            version: accepted.extra.version,
-            chainId: BASE_CHAIN_ID,
-            verifyingContract: accepted.asset as `0x${string}`,
-          },
-          primaryType: "TransferWithAuthorization",
-          types: {
-            TransferWithAuthorization: [
-              { name: "from", type: "address" },
-              { name: "to", type: "address" },
-              { name: "value", type: "uint256" },
-              { name: "validAfter", type: "uint256" },
-              { name: "validBefore", type: "uint256" },
-              { name: "nonce", type: "bytes32" },
-            ],
-          },
-          message: {
-            ...authorization,
-            value: BigInt(authorization.value),
-            validAfter: BigInt(authorization.validAfter),
-            validBefore: BigInt(authorization.validBefore),
-          },
-        });
-        credential = btoa(JSON.stringify({
-          x402Version: x402Quote.paymentRequired.x402Version,
-          resource: x402Quote.paymentRequired.resource,
-          accepted,
-          payload: { signature, authorization },
-        }));
+        credential = await createBaseX402Credential(activeQuote as X402Quote);
       } else {
+        const connectorClient = await getConnectorClient(wagmiAdapter.wagmiConfig, { chainId: targetChainId });
         const mppx = Mppx.create({
           polyfill: false,
           methods: [tempoPayment.charge({

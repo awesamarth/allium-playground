@@ -38,13 +38,24 @@ describe("Allium result visualizations", () => {
 
   test("builds a time series for historical prices", () => {
     const visualization = buildVisualization("allium_token_price_history", {
-      items: [
-        { timestamp: "2026-08-12T00:00:00Z", price: 1, symbol: "USDC" },
-        { timestamp: "2026-08-13T00:00:00Z", price: 1.001, symbol: "USDC" },
-      ],
+      items: [{
+        token_address: "0xUSDC",
+        prices: [
+          { timestamp: "2026-08-12T00:00:00Z", price: 1, symbol: "USDC" },
+          { timestamp: "2026-08-13T00:00:00Z", price: 1.001, symbol: "USDC" },
+        ],
+      }],
     });
 
     expect(visualization.option).not.toBeNull();
     expect(visualization.table.total).toBe(2);
+  });
+
+  test("builds a chart from token price statistics", () => {
+    const visualization = buildVisualization("allium_token_price_stats", {
+      items: [{ price: 1880, price_high_1h: 1900, price_low_1h: 1870, price_high_24h: 1920, price_low_24h: 1840 }],
+    });
+    expect(visualization.option).not.toBeNull();
+    expect(visualization.table.total).toBe(1);
   });
 });

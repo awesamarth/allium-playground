@@ -14,7 +14,7 @@ const mono = Roboto_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Allium Playground — Ask the chain",
+  title: "Allium Playground",
   description:
     "Ask onchain data questions, review the exact cost, and pay only for the Allium calls you approve.",
 };

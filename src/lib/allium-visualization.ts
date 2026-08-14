@@ -24,6 +24,23 @@ function itemsOf(payload: unknown) {
   return Array.isArray(root?.items) ? root.items.map(record).filter(Boolean) as JsonRecord[] : [];
 }
 
+function nestedRecords(values: JsonRecord[], depth = 0): JsonRecord[] {
+  if (depth > 5) return values;
+  const records: JsonRecord[] = [];
+  for (const value of values) {
+    records.push(value);
+    for (const child of Object.values(value)) {
+      if (Array.isArray(child)) {
+        records.push(...nestedRecords(child.map(record).filter(Boolean) as JsonRecord[], depth + 1));
+      } else {
+        const childRecord = record(child);
+        if (childRecord) records.push(...nestedRecords([childRecord], depth + 1));
+      }
+    }
+  }
+  return records;
+}
+
 function nested(item: JsonRecord, ...path: string[]): unknown {
   let value: unknown = item;
   for (const key of path) value = record(value)?.[key];
@@ -152,10 +169,10 @@ function balanceHistory(items: JsonRecord[]): Visualization {
 }
 
 function priceSeries(items: JsonRecord[]): Visualization {
-  const rows = items.map((item) => ({
-    timestamp: stringAt(item, [["timestamp"], ["block_timestamp"], ["interval_start"], ["time"]]),
+  const rows = nestedRecords(items).map((item) => ({
+    timestamp: stringAt(item, [["timestamp"], ["price_timestamp"], ["block_timestamp"], ["interval_start"], ["start_timestamp"], ["date"], ["time"]]),
     symbol: stringAt(item, [["token", "info", "symbol"], ["symbol"], ["token_address"]], "Token"),
-    price: numberAt(item, [["price"], ["close"], ["price_usd"]]),
+    price: numberAt(item, [["price"], ["close"], ["price_usd"], ["value"]]),
     open: numberAt(item, [["open"]]),
     high: numberAt(item, [["high"]]),
     low: numberAt(item, [["low"]]),
@@ -174,6 +191,35 @@ function priceSeries(items: JsonRecord[]): Visualization {
       series: seriesNames.map((name, index) => ({ name, type: "line", smooth: .18, showSymbol: rows.length < 35, symbolSize: 5, lineStyle: { width: 2, color: PALETTE[index % PALETTE.length] }, areaStyle: index === 0 ? { color: "rgba(214,106,204,.12)" } : undefined, data: rows.filter((row) => row.symbol === name && row.timestamp !== "—").map((row) => [row.timestamp, row.price]) })),
     } : null,
     table: { columns: [{ key: "timestamp", label: "Timestamp" }, { key: "symbol", label: "Asset" }, { key: "price", label: "Price" }, { key: "open", label: "Open" }, { key: "high", label: "High" }, { key: "low", label: "Low" }, { key: "volume", label: "Volume" }], rows, total: rows.length },
+  };
+}
+
+function priceStats(items: JsonRecord[]): Visualization {
+  const source = nestedRecords(items).find((item) => Number.isFinite(numberAt(item, [["price"], ["price_high_1h"], ["high_1h"]]))) ?? items[0];
+  const rows = source ? [{
+    price: numberAt(source, [["price"], ["latest_price"]]),
+    high1h: numberAt(source, [["price_high_1h"], ["high_1h"]]),
+    low1h: numberAt(source, [["price_low_1h"], ["low_1h"]]),
+    change1h: numberAt(source, [["percent_change_1h"], ["price_change_1h"]]),
+    high24h: numberAt(source, [["price_high_24h"], ["high_24h"]]),
+    low24h: numberAt(source, [["price_low_24h"], ["low_24h"]]),
+    change24h: numberAt(source, [["percent_change_24h"], ["price_change_24h"]]),
+    timestamp: stringAt(source, [["timestamp"], ["price_timestamp"], ["updated_at"]]),
+  }] : [];
+  const points = rows.length ? [
+    ["Latest", rows[0].price], ["1h high", rows[0].high1h], ["1h low", rows[0].low1h],
+    ["24h high", rows[0].high24h], ["24h low", rows[0].low24h],
+  ].filter((point) => Number.isFinite(point[1] as number)) as Array<[string, number]> : [];
+  return {
+    title: "Price statistics",
+    description: points.length ? "Latest price and Allium’s filtered one-hour and 24-hour range statistics." : "No price statistics were available to chart.",
+    option: points.length ? {
+      ...baseOption(),
+      xAxis: { ...axis, type: "category", data: points.map(([label]) => label) },
+      yAxis: { ...axis, type: "value", scale: true, axisLabel: { ...axis.axisLabel, formatter: (value: number) => `$${formatNumber(value)}` } },
+      series: [{ type: "bar", barMaxWidth: 42, data: points.map(([, value], index) => ({ value, itemStyle: { color: PALETTE[index % PALETTE.length], borderRadius: [3, 3, 0, 0] } })) }],
+    } : null,
+    table: { columns: [{ key: "price", label: "Latest price" }, { key: "high1h", label: "1h high" }, { key: "low1h", label: "1h low" }, { key: "change1h", label: "1h change" }, { key: "high24h", label: "24h high" }, { key: "low24h", label: "24h low" }, { key: "change24h", label: "24h change" }, { key: "timestamp", label: "Timestamp" }], rows, total: rows.length },
   };
 }
 
@@ -221,7 +267,8 @@ export function buildVisualization(tool: AlliumToolId, payload: unknown): Visual
   const items = itemsOf(payload);
   if (tool === "allium_wallet_balances") return holdings(items);
   if (tool === "allium_wallet_balance_history") return balanceHistory(items);
-  if (["allium_token_prices", "allium_token_prices_at_timestamp", "allium_token_price_history", "allium_token_price_stats"].includes(tool)) return priceSeries(items);
+  if (tool === "allium_token_price_stats") return priceStats(items);
+  if (["allium_token_prices", "allium_token_prices_at_timestamp", "allium_token_price_history"].includes(tool)) return priceSeries(items);
   if (tool === "allium_wallet_transactions") return transactionActivity(items);
   if (tool === "allium_wallet_pnl") return generic(items, "Profit and loss");
   return generic(items, "Token results");

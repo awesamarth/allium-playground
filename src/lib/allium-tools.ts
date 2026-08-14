@@ -145,7 +145,7 @@ export const alliumToolCatalogue: AlliumToolDefinition[] = [
   },
   {
     id: "allium_token_price_stats", category: "Prices", title: "Price stats",
-    description: "Get 1-hour and 24-hour highs, lows, volume, trades, and change.", method: "POST",
+    description: "Get the latest price plus 1-hour and 24-hour highs, lows, and percentage change.", method: "POST",
     path: "/api/v1/developer/prices/stats", priceUsd: 0.02,
     fields: [chainField, tokenField], defaults: { chain: "ethereum", tokenAddress: ethereumUsdc },
   },

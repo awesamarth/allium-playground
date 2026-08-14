@@ -5,6 +5,7 @@ import {
   readCodexSessionCookie,
   requireSameOrigin,
 } from "@/server/codex-session-cookie";
+import { alliumToolCatalogue, alliumToolSchemas, type AlliumToolId } from "@/lib/allium-tools";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,27 +14,20 @@ const inputSchema = z.object({
   query: z.string().trim().min(3).max(2_000),
 });
 
-const prices = {
-  allium_wallet_transactions: 0.03,
-} as const;
-
-const walletArgumentsSchema = z.object({
-  address: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-  chain: z.enum(["base", "ethereum"]),
-  limit: z.number().int().min(1).max(100),
-}).strict();
+const toolIds = alliumToolCatalogue.map((tool) => tool.id) as [AlliumToolId, ...AlliumToolId[]];
+const prices = Object.fromEntries(alliumToolCatalogue.map((tool) => [tool.id, tool.priceUsd])) as Record<AlliumToolId, number>;
 
 const modelPlanSchema = z.object({
   interpretation: z.string(),
   calls: z.array(
     z.object({
-      tool: z.enum(Object.keys(prices) as [keyof typeof prices, ...(keyof typeof prices)[]]),
-      arguments: walletArgumentsSchema,
+      tool: z.enum(toolIds),
+      arguments: z.record(z.string(), z.unknown()),
       reason: z.string().min(1),
       unitCostUsd: z.number(),
       maxCalls: z.literal(1),
     }),
-  ).max(1),
+  ).max(5),
   assumptions: z.array(z.string()),
   unsupportedParts: z.array(z.string()),
 });
@@ -58,6 +52,12 @@ export async function POST(request: Request) {
   if (!session) {
     return NextResponse.json({ error: "Codex session expired." }, { status: 401 });
   }
+  if (session.plannerVersion !== 2) {
+    return NextResponse.json(
+      { error: "The connected Codex session uses an older tool schema. Disconnect and reconnect Codex once, then retry." },
+      { status: 409 },
+    );
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -72,10 +72,24 @@ export async function POST(request: Request) {
           const modelPlan = modelPlanSchema.parse(
             await session.plan(input.data.query, (delta) => send({ type: "delta", delta })),
           );
-          const calls = modelPlan.calls.map((call) => ({
-            ...call,
-            unitCostUsd: prices[call.tool],
-          }));
+          const calls = modelPlan.calls.map((call) => {
+            const suppliedArguments = Object.fromEntries(
+              Object.entries(call.arguments).filter(([, value]) => value !== null && value !== ""),
+            );
+            const parsedArguments = alliumToolSchemas[call.tool].safeParse(suppliedArguments);
+            if (!parsedArguments.success) {
+              const details = parsedArguments.error.issues
+                .slice(0, 3)
+                .map((issue) => `${issue.path.join(".") || "arguments"}: ${issue.message}`)
+                .join("; ");
+              throw new Error(`Codex produced invalid arguments for ${call.tool}: ${details}`);
+            }
+            return {
+              ...call,
+              arguments: parsedArguments.data,
+              unitCostUsd: prices[call.tool],
+            };
+          });
           const maximumDataCostUsd = calls.reduce(
             (total, call) => total + call.unitCostUsd * call.maxCalls,
             0,
