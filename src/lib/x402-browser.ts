@@ -1,12 +1,44 @@
 "use client";
 
-import { getConnectorClient, signTypedData } from "wagmi/actions";
-import { BASE_CHAIN_ID, type X402Quote } from "@/lib/allium";
+import { formatUnits } from "viem";
+import { getConnectorClient, readContract, signTypedData } from "wagmi/actions";
+import { BASE_CHAIN_ID, BASE_USDC, type X402Quote } from "@/lib/allium";
 import { wagmiAdapter } from "@/lib/wallet";
 
 function randomNonce() {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}` as `0x${string}`;
+}
+
+const balanceOfAbi = [{
+  type: "function",
+  name: "balanceOf",
+  stateMutability: "view",
+  inputs: [{ name: "account", type: "address" }],
+  outputs: [{ name: "balance", type: "uint256" }],
+}] as const;
+
+function usd(value: bigint) {
+  return Number(formatUnits(value, 6)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+}
+
+export async function requireSufficientBaseUsdc(required: bigint) {
+  const client = await getConnectorClient(wagmiAdapter.wagmiConfig, { chainId: BASE_CHAIN_ID });
+  let balance: bigint;
+  try {
+    balance = await readContract(wagmiAdapter.wagmiConfig, {
+      chainId: BASE_CHAIN_ID,
+      address: BASE_USDC,
+      abi: balanceOfAbi,
+      functionName: "balanceOf",
+      args: [client.account.address],
+    });
+  } catch {
+    throw new Error("Could not check this wallet’s Base USDC balance. Try again before approving payment.");
+  }
+  if (balance < required) {
+    throw new Error(`Not enough USDC on Base. This plan requires $${usd(required)} USDC, but this wallet has $${usd(balance)}. Add USDC on Base or connect another wallet. Nothing was signed or charged.`);
+  }
 }
 
 /** Sign one exact Base USDC EIP-3009 authorization from a validated x402 quote. */

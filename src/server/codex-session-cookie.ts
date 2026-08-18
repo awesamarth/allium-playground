@@ -63,7 +63,11 @@ export async function clearCodexSessionCookie() {
 
 export function requireSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  if (!origin || origin !== new URL(request.url).origin) {
+  const expectedOrigin = process.env.PUBLIC_ORIGIN
+    ? new URL(process.env.PUBLIC_ORIGIN).origin
+    : new URL(request.url).origin;
+
+  if (!origin || origin !== expectedOrigin) {
     throw new Error("Cross-origin request rejected.");
   }
 }

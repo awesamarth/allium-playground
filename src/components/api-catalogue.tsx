@@ -19,7 +19,7 @@ import {
 } from "@/lib/allium";
 import { wagmiAdapter } from "@/lib/wallet";
 import { ApiResultView } from "@/components/api-result-view";
-import { createBaseX402Credential } from "@/lib/x402-browser";
+import { createBaseX402Credential, requireSufficientBaseUsdc } from "@/lib/x402-browser";
 
 type WorkbenchStage = "edit" | "quoting" | "paying" | "result" | "error";
 
@@ -141,6 +141,7 @@ export function ApiCatalogue({ paymentRail = "tempo" }: { paymentRail?: "tempo" 
       }
       const activeQuote = challenge.quote as TempoQuote | X402Quote;
       setQuote(activeQuote);
+      if (paymentRail === "base") await requireSufficientBaseUsdc(BigInt(activeQuote.amountAtomic));
       setStage("paying");
 
       const targetChainId = paymentRail === "base" ? BASE_CHAIN_ID : TEMPO_CHAIN_ID;

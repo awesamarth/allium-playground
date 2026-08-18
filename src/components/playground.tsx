@@ -24,7 +24,7 @@ import { wagmiAdapter } from "@/lib/wallet";
 import { ApiCatalogue } from "@/components/api-catalogue";
 import { ApiResultView } from "@/components/api-result-view";
 import { alliumToolCatalogue, type AlliumToolId } from "@/lib/allium-tools";
-import { createBaseX402Credential } from "@/lib/x402-browser";
+import { createBaseX402Credential, requireSufficientBaseUsdc } from "@/lib/x402-browser";
 
 const DEFAULT_QUERY =
   "Show the five largest recent outgoing stablecoin transfers from Binance 14.";
@@ -356,12 +356,15 @@ export function Playground({ paymentRail = "base" }: { paymentRail?: "tempo" | "
       return;
     }
 
-    setStage("paying");
     setError("");
     setExecutions([]);
     const completed: ExecutedCall[] = [];
 
     try {
+      if (paymentRail === "base") {
+        await requireSufficientBaseUsdc(quotes.reduce((sum, item) => sum + BigInt(item.amountAtomic), BigInt(0)));
+      }
+      setStage("paying");
       const targetChainId = paymentRail === "base" ? BASE_CHAIN_ID : TEMPO_CHAIN_ID;
       if (chainId !== targetChainId) await switchChainAsync({ chainId: targetChainId });
 
@@ -374,6 +377,10 @@ export function Playground({ paymentRail = "base" }: { paymentRail?: "tempo" | "
 
         let credential: string;
         if (paymentRail === "base") {
+          if (index > 0) {
+            const remaining = quotes.slice(index).reduce((sum, item) => sum + BigInt(item.amountAtomic), BigInt(0));
+            await requireSufficientBaseUsdc(remaining);
+          }
           credential = await createBaseX402Credential(activeQuote as X402Quote);
         } else {
           const mppx = Mppx.create({
