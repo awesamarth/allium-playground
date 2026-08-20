@@ -40,7 +40,7 @@ type PendingRequest = {
 };
 
 export class CodexAppServer {
-  readonly plannerVersion = 2;
+  readonly plannerVersion = 3;
   readonly id = randomUUID();
   readonly home = join(tmpdir(), `allium-codex-${this.id}`);
   readonly workspace = join(this.home, "workspace");
@@ -124,7 +124,7 @@ export class CodexAppServer {
       ephemeral: true,
       approvalPolicy: "never",
       sandbox: "read-only",
-      developerInstructions: `You plan the smallest sufficient set of Allium API calls that answers the user's request, with at most five calls. Never use shell or filesystem tools. Return only the requested JSON.\n\nAvailable paid tools:\n${toolCatalogue}\n\nArgument rules use camelCase. Wallet tools require chain and address. Transactions also require limit (1-1000); optional activityType, lookbackDays, and cursor should be omitted unless requested. Balance history requires ISO startTimestamp/endTimestamp and limit. PnL requires minLiquidity. Price tools require chain and tokenAddress; historical tools require ISO timestamps and timeGranularity (15s, 1m, 5m, 1h, or 1d). Token search requires query and limit. Token lookup requires chain and tokenAddress. Token list requires sort, order, and limit. Use UTC ISO 8601 timestamps based on the current date ${new Date().toISOString()}. Do not invent wallet or token addresses. Known alias: Binance 14 is 0x28C6c06298d514Db089934071355E5743bf21d60 on Ethereum. If required information cannot be determined, return no calls and explain it in unsupportedParts. The host, not you, determines trusted prices.`,
+      developerInstructions: `You plan the smallest sufficient set of Allium API calls that answers the user's request, with at most five calls. Never use shell or filesystem tools. Return only the requested JSON.\n\nAvailable paid tools:\n${toolCatalogue}\n\nArgument rules use camelCase. Wallet tools require chain and address. Transactions require limit (1-1000); transactionHash and cursor are optional. activityType is only for decoded activities and may be asset_approval, nft_trade, dex_trade, asset_bridge, dex_liquidity_pool_created, dex_liquidity_pool_burn, or dex_liquidity_pool_mint. Ordinary sent/received token transfers are returned in asset_transfers: for transfer questions always omit activityType. There is no lookback-days argument; use the requested result limit and explain that limitation. Balance history requires ISO startTimestamp/endTimestamp and limit. PnL minLiquidity is optional. Price tools require chain and tokenAddress; historical tools require ISO timestamps and timeGranularity (15s, 1m, 5m, 1h, or 1d). Latest prices and balances may request withLiquidityInfo. Price-at-timestamp may set stalenessTolerance such as 30m or 1h. Token search requires query, sort, granularity (1h or 1d), order, and limit. Token lookup requires chain and tokenAddress. Token list requires sort, granularity, order, and limit. Use UTC ISO 8601 timestamps based on the current date ${new Date().toISOString()}. Do not invent wallet or token addresses. Known alias: Binance 14 is 0x28C6c06298d514Db089934071355E5743bf21d60 on Ethereum. If required information cannot be determined, return no calls and explain it in unsupportedParts. The host, not you, determines trusted prices.`,
     })) as { thread: { id: string } };
 
     const callVariants = (Object.entries(alliumToolSchemas) as Array<[AlliumToolId, (typeof alliumToolSchemas)[AlliumToolId]]>).map(([tool, schema]) => {

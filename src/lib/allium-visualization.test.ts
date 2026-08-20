@@ -51,6 +51,11 @@ describe("Allium result visualizations", () => {
     expect(visualization.table.total).toBe(2);
   });
 
+  test("accepts bare-array token responses", () => {
+    const visualization = buildVisualization("allium_token_search", [{ chain: "ethereum", address: "0x1", price: 1 }]);
+    expect(visualization.table.total).toBe(1);
+  });
+
   test("builds a chart from token price statistics", () => {
     const visualization = buildVisualization("allium_token_price_stats", {
       items: [{ price: 1880, price_high_1h: 1900, price_low_1h: 1870, price_high_24h: 1920, price_low_24h: 1840 }],

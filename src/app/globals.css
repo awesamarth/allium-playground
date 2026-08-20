@@ -231,6 +231,9 @@ td a { display: inline-flex; gap: 4px; align-items: center; text-decoration: und
 .api-field:has(input[type="text"]) { grid-column: span 2; }
 .api-field > span { color: #716970; font-size: 10px; }
 .api-field input, .api-field select { width: 100%; height: 42px; padding: 0 11px; border: 1px solid #bbb4b8; border-radius: 0; outline: 0; background: white; color: var(--ink); font: 11px var(--font-mono); }
+.api-checkbox { min-height: 42px; padding: 0 11px; border: 1px solid #bbb4b8; background: white; flex-direction: row; align-items: center; gap: 9px; }
+.api-checkbox input { width: 14px; height: 14px; padding: 0; accent-color: var(--pink); }
+.api-checkbox span { color: var(--ink); font-size: 11px; text-transform: none; letter-spacing: 0; }
 .api-field input:focus, .api-field select:focus { border-color: var(--ink); box-shadow: 2px 2px 0 var(--pink); }
 .request-preview { margin-top: 28px; border: 1px solid var(--line); background: #f4f1f2; }
 .request-preview > span { min-height: 36px; padding: 0 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; color: #756d73; font-size: 9px; text-transform: uppercase; letter-spacing: .07em; }

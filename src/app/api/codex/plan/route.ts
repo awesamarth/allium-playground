@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   if (!session) {
     return NextResponse.json({ error: "Codex session expired." }, { status: 401 });
   }
-  if (session.plannerVersion !== 2) {
+  if (session.plannerVersion !== 3) {
     return NextResponse.json(
       { error: "The connected Codex session uses an older tool schema. Disconnect and reconnect Codex once, then retry." },
       { status: 409 },

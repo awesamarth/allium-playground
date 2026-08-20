@@ -20,8 +20,13 @@ function record(value: unknown): JsonRecord | null {
 }
 
 function itemsOf(payload: unknown) {
+  if (Array.isArray(payload)) return payload.map(record).filter(Boolean) as JsonRecord[];
   const root = record(payload);
-  return Array.isArray(root?.items) ? root.items.map(record).filter(Boolean) as JsonRecord[] : [];
+  if (!root) return [];
+  if (Array.isArray(root.items)) return root.items.map(record).filter(Boolean) as JsonRecord[];
+  if (Array.isArray(root.data)) return root.data.map(record).filter(Boolean) as JsonRecord[];
+  const data = record(root.data);
+  return data ? [data] : [root];
 }
 
 function nestedRecords(values: JsonRecord[], depth = 0): JsonRecord[] {

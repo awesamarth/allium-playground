@@ -43,6 +43,7 @@ function toToolInput(tool: AlliumToolDefinition, values: Record<string, string>)
     if (!value && field.optional) continue;
     if (!value) input[field.key] = "";
     else if (field.type === "number") input[field.key] = Number(value);
+    else if (field.type === "boolean") input[field.key] = value === "true";
     else if (field.type === "datetime-local") input[field.key] = new Date(value).toISOString();
     else input[field.key] = value;
   }
@@ -50,6 +51,14 @@ function toToolInput(tool: AlliumToolDefinition, values: Record<string, string>)
 }
 
 function Field({ field, value, onChange }: { field: ToolField; value: string; onChange: (value: string) => void }) {
+  if (field.type === "boolean") {
+    return (
+      <label className="api-field api-checkbox">
+        <input type="checkbox" checked={value === "true"} onChange={(event) => onChange(String(event.target.checked))} />
+        <span>{field.label}</span>
+      </label>
+    );
+  }
   if (field.type === "select") {
     return (
       <label className="api-field">
